@@ -312,6 +312,17 @@ jobs:
           STAGING_URL="https://${STAGING_URL}"
           echo "🔗 Testing staging URL: ${STAGING_URL}"
 
+          # Wait for pods to be fully ready (readiness probe must pass)
+          echo "⏳ Waiting for all pods to be ready..."
+          oc wait --for=condition=ready pod \
+            -l app=payment-app \
+            -n "${{ env.STAGING_NS }}" \
+            --timeout=2m
+          
+          # Additional grace period for service endpoints to update
+          echo "⏳ Grace period for service endpoints..."
+          sleep 10
+
           echo "▶ Health check — /actuator/health"
           HTTP_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" \
             "${STAGING_URL}/actuator/health")
