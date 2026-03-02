@@ -26,7 +26,7 @@ concurrency:
 # ── Shared env ────────────────────────────────────────────────────────────────
 env:
   JAVA_VERSION: "17"
-  WORKING_DIR: payment-app-java17
+  WORKING_DIR: .
   STAGING_NS: bob-demo-staging
   PROD_NS: bob-demo-prod
   APP_NAME: payment-app
@@ -84,7 +84,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: payment-app-jar
-          path: ${{ env.WORKING_DIR }}/target/payment-app-*.jar
+          path: target/payment-app-*.jar
           retention-days: 1
 
   # ── 2. JUnit Tests ──────────────────────────────────────────────────────────
@@ -116,7 +116,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: surefire-reports
-          path: ${{ env.WORKING_DIR }}/target/surefire-reports/
+          path: target/surefire-reports/
           retention-days: 7
 
   # ── 3. OWASP Dependency-Check ───────────────────────────────────────────────
@@ -161,7 +161,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: owasp-report
-          path: ${{ env.WORKING_DIR }}/target/dependency-check-report/
+          path: target/dependency-check-report/
           retention-days: 14
 
   # ── 4. Semgrep SAST ─────────────────────────────────────────────────────────
@@ -186,7 +186,7 @@ jobs:
             --error \
             --json \
             --output semgrep-results.json \
-            ${{ env.WORKING_DIR }}/src
+            src
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
@@ -281,7 +281,7 @@ jobs:
             -e "s|\${IMAGE_REGISTRY}|${{ secrets.OPENSHIFT_REGISTRY }}|g" \
             -e "s|\${NAMESPACE}|${{ env.STAGING_NS }}|g" \
             -e "s|\${IMAGE_TAG}|${{ env.IMAGE_TAG }}|g" \
-            payment-app-java17/k8s/deployment.yaml \
+            k8s/deployment.yaml \
           | oc apply -n "${{ env.STAGING_NS }}" -f -
 
       - name: Wait for rollout to complete
@@ -365,7 +365,7 @@ jobs:
             -e "s|\${IMAGE_REGISTRY}|${{ secrets.OPENSHIFT_REGISTRY }}|g" \
             -e "s|\${NAMESPACE}|${{ env.PROD_NS }}|g" \
             -e "s|\${IMAGE_TAG}|${{ env.IMAGE_TAG }}|g" \
-            payment-app-java17/k8s/deployment.yaml \
+            k8s/deployment.yaml \
           | oc apply -n "${{ env.PROD_NS }}" -f -
 
       - name: Wait for production rollout to complete
