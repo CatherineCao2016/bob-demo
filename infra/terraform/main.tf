@@ -259,6 +259,50 @@ resource "kubernetes_role_binding" "payment_sa_binding" {
 }
 
 # ===========================================================
+# 4b. CI/CD SERVICE ACCOUNT — pipeline (for GitHub Actions)
+# ===========================================================
+
+# Service account for CI/CD pipeline (GitHub Actions)
+resource "kubernetes_service_account" "pipeline_sa" {
+  for_each = local.namespaces
+
+  metadata {
+    name      = "pipeline"
+    namespace = kubernetes_namespace.payment[each.key].metadata[0].name
+
+    labels = {
+      "app.kubernetes.io/managed-by" = "terraform"
+      "app"                          = "cicd-pipeline"
+    }
+  }
+
+  automount_service_account_token = true
+}
+
+# RoleBinding — grant system:image-pusher to pipeline SA
+# This allows the CI/CD pipeline to push Docker images to the namespace's image stream
+resource "kubernetes_role_binding" "pipeline_image_pusher" {
+  for_each = local.namespaces
+
+  metadata {
+    name      = "pipeline-image-pusher"
+    namespace = kubernetes_namespace.payment[each.key].metadata[0].name
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = "system:image-pusher"
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account.pipeline_sa[each.key].metadata[0].name
+    namespace = kubernetes_namespace.payment[each.key].metadata[0].name
+  }
+}
+
+# ===========================================================
 # 5. POSTGRESQL — PersistentVolumeClaim
 # ===========================================================
 

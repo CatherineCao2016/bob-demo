@@ -113,7 +113,8 @@ terraform apply -auto-approve
 - Namespaces: `bob-demo-staging`, `bob-demo-prod`
 - ResourceQuota per namespace
 - NetworkPolicy (default-deny + allow payment→postgres:5432)
-- ServiceAccount `payment-service-sa` + RBAC
+- ServiceAccount `payment-service-sa` + RBAC (for the payment app runtime)
+- ServiceAccount `pipeline` + `system:image-pusher` role (for CI/CD image pushes)
 - PostgreSQL Deployment (`postgres:15`, 1 replica)
 - PostgreSQL ClusterIP Service (`postgres-service:5432`)
 - PersistentVolumeClaim (`postgres-pvc`, 5Gi)
