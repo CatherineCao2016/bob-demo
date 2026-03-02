@@ -229,7 +229,7 @@ jobs:
             --insecure-skip-tls-verify=false
 
       - name: Log in to OpenShift internal registry
-        run: oc registry login
+        run: oc registry login --registry="${{ secrets.OPENSHIFT_REGISTRY }}"
 
       # ── Build Docker image ─────────────────────────────────────────────────
       - name: Build Docker image
