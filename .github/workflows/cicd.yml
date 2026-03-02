@@ -336,7 +336,7 @@ jobs:
           RESP=$(curl -sk -o /dev/null -w "%{http_code}" \
             -X POST "${STAGING_URL}/api/payments/authorize" \
             -H "Content-Type: application/json" \
-            -d '{"cardNumber":"4111111111111111","amount":1.00,"currency":"USD","merchantId":"smoke-test"}')
+            -d '{"cardNumber":"4111111111111111","expiryMonth":"12","expiryYear":"2025","cvv":"123","amount":1.00,"currency":"USD"}')
           if [ "$RESP" != "200" ] && [ "$RESP" != "201" ]; then
             echo "❌ Authorize smoke test failed (HTTP ${RESP})"
             exit 1
