@@ -206,12 +206,7 @@ jobs:
     # Also runs when quality-gate jobs were skipped ([skip checks] path):
     # GitHub treats skipped needs as blocking by default, so we explicitly
     # allow success OR skipped for each quality-gate job.
-    if: |
-      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      needs.build.result == 'success' &&
-      (needs.test.result == 'success'   || needs.test.result == 'skipped') &&
-      (needs.owasp.result == 'success'  || needs.owasp.result == 'skipped') &&
-      (needs.semgrep.result == 'success' || needs.semgrep.result == 'skipped')
+    if: "github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.owasp.result == 'success' || needs.owasp.result == 'skipped') && (needs.semgrep.result == 'success' || needs.semgrep.result == 'skipped')"
     needs: [build, test, owasp, semgrep]
 
     steps:
