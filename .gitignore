@@ -35,3 +35,6 @@ hs_err_pid*
 .vscode/
 .DS_Store
 Thumbs.db
+
+# ── Local docs / notes ───────────────────────────────────────────────────────
+troubleshooting-guide.md
