@@ -50,6 +50,7 @@ spec:
         prometheus.io/path: "/actuator/prometheus"
         prometheus.io/port: "8080"
     spec:
+      serviceAccountName: payment-service-sa
       # ── Security Context (matches distroless nonroot uid=65532) ─────────────
       securityContext:
         runAsNonRoot: true
