@@ -253,7 +253,7 @@ jobs:
     needs: docker-build-push
     environment:
       name: staging
-      url: https://payment-app-bob-demo-staging.apps.${{ secrets.CLUSTER_DOMAIN }}
+      url: https://payment-app-bob-demo-staging.apps.${{ vars.CLUSTER_DOMAIN }}
 
     env:
       IMAGE_TAG: ${{ github.sha }}
@@ -328,7 +328,7 @@ jobs:
     # and add required reviewers to enforce the approval step.
     environment:
       name: production
-      url: https://payment-app-bob-demo-prod.apps.${{ secrets.CLUSTER_DOMAIN }}
+      url: https://payment-app-bob-demo-prod.apps.${{ vars.CLUSTER_DOMAIN }}
 
     env:
       IMAGE_TAG: ${{ github.sha }}
