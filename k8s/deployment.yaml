@@ -38,7 +38,7 @@ spec:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
-      maxUnavailable: 0          # zero-downtime rolling update
+      maxUnavailable: 1          # allow 1 unavailable so rollout can make progress
   template:
     metadata:
       labels:
@@ -60,10 +60,13 @@ spec:
           type: RuntimeDefault
 
       # ── Topology Spread — distribute pods across nodes ──────────────────────
+      # ScheduleAnyway is a soft constraint: pods are spread across nodes when
+      # possible but scheduling is NOT blocked if the cluster has fewer nodes
+      # than replicas (common in staging environments).
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
+          whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
               app: payment-app
