@@ -232,7 +232,7 @@ jobs:
         run: |
           echo "${{ secrets.OPENSHIFT_TOKEN }}" | docker login \
             "${{ secrets.OPENSHIFT_REGISTRY }}" \
-            --username=serviceaccount \
+            --username=unused \
             --password-stdin
 
       # ── Build Docker image ─────────────────────────────────────────────────
