@@ -25,6 +25,12 @@ terraform {
       source  = "integrations/github"
       version = "~> 6.0"
     }
+
+    # Null provider — used for local-exec provisioners
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.2"
+    }
   }
 }
 

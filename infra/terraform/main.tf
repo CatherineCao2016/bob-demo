@@ -192,9 +192,10 @@ resource "kubernetes_network_policy" "allow_ingress_to_postgres" {
 }
 
 # ===========================================================
-# 4. SERVICE ACCOUNT — payment-service-sa (least privilege)
+# 4. SERVICE ACCOUNTS
 # ===========================================================
 
+# 4a. Service Account for payment-service
 resource "kubernetes_service_account" "payment_sa" {
   for_each = local.namespaces
 
@@ -205,6 +206,23 @@ resource "kubernetes_service_account" "payment_sa" {
     labels = {
       "app.kubernetes.io/managed-by" = "terraform"
       "app"                          = "payment-service"
+    }
+  }
+
+  automount_service_account_token = false
+}
+
+# 4b. Service Account for postgres (requires anyuid SCC)
+resource "kubernetes_service_account" "postgres_sa" {
+  for_each = local.namespaces
+
+  metadata {
+    name      = "postgres-sa"
+    namespace = kubernetes_namespace.payment[each.key].metadata[0].name
+
+    labels = {
+      "app.kubernetes.io/managed-by" = "terraform"
+      "app"                          = "postgres"
     }
   }
 
@@ -258,8 +276,35 @@ resource "kubernetes_role_binding" "payment_sa_binding" {
   }
 }
 
+# 4c. Grant anyuid SCC to service accounts (OpenShift-specific)
+# This prevents pod creation failures due to hardcoded UIDs in container images
+resource "null_resource" "grant_anyuid_scc" {
+  for_each = local.namespaces
+
+  # Re-run if service accounts change
+  triggers = {
+    payment_sa_uid  = kubernetes_service_account.payment_sa[each.key].metadata[0].uid
+    postgres_sa_uid = kubernetes_service_account.postgres_sa[each.key].metadata[0].uid
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      oc adm policy add-scc-to-user anyuid -z payment-service-sa -n ${kubernetes_namespace.payment[each.key].metadata[0].name}
+      oc adm policy add-scc-to-user anyuid -z postgres-sa -n ${kubernetes_namespace.payment[each.key].metadata[0].name}
+    EOT
+    environment = {
+      KUBECONFIG = "" # Use current context
+    }
+  }
+
+  depends_on = [
+    kubernetes_service_account.payment_sa,
+    kubernetes_service_account.postgres_sa,
+  ]
+}
+
 # ===========================================================
-# 4b. CI/CD SERVICE ACCOUNT — pipeline (for GitHub Actions)
+# 4d. CI/CD SERVICE ACCOUNT — pipeline (for GitHub Actions)
 # ===========================================================
 
 # Service account for CI/CD pipeline (GitHub Actions)
@@ -379,7 +424,7 @@ resource "kubernetes_deployment" "postgres" {
       }
 
       spec {
-        service_account_name            = "default"
+        service_account_name            = kubernetes_service_account.postgres_sa[each.key].metadata[0].name
         automount_service_account_token = false
 
         container {
