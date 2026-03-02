@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payment Demo</title>
+  <!-- React + Babel via CDN for zero-build setup -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: white;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    header h1 { font-size: 1.4rem; font-weight: 600; letter-spacing: 0.5px; }
+    header span { font-size: 1.6rem; }
+
+    .container {
+      max-width: 1100px;
+      margin: 32px auto;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 28px;
+      align-items: start;
+    }
+
+    @media (max-width: 800px) {
+      .container { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 28px;
+    }
+
+    .card h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 22px;
+      color: #1a1a2e;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .form-group { margin-bottom: 16px; }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid #dde1e7;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      transition: border-color 0.2s;
+      outline: none;
+      background: #fafbfc;
+    }
+
+    input:focus, select:focus { border-color: #4f46e5; background: white; }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      color: white;
+    }
+    .btn-primary:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .btn-sm {
+      width: auto;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .btn-capture { background: #10b981; color: white; }
+    .btn-capture:hover { background: #059669; }
+    .btn-refund { background: #6b7280; color: white; }
+    .btn-refund:hover { background: #4b5563; }
+
+    .alert {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-top: 16px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+    .alert-error   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .alert-info    { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-AUTHORIZED  { background: #fef3c7; color: #92400e; }
+    .badge-CAPTURED    { background: #d1fae5; color: #065f46; }
+    .badge-DECLINED    { background: #fee2e2; color: #991b1b; }
+    .badge-REFUNDED    { background: #f3f4f6; color: #374151; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      background: #f8f9fa;
+      color: #6b7280;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+    td { padding: 12px 12px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafbfc; }
+
+    .amount { font-weight: 700; color: #1a1a2e; }
+    .card-num { font-family: monospace; color: #6b7280; }
+    .tx-id { font-family: monospace; font-size: 0.75rem; color: #9ca3af; }
+    .actions { display: flex; gap: 6px; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #9ca3af;
+    }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 10px; }
+
+    .refresh-btn {
+      background: none;
+      border: 1.5px solid #dde1e7;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      color: #6b7280;
+      font-weight: 600;
+      transition: all 0.2s;
+      margin-left: auto;
+    }
+    .refresh-btn:hover { border-color: #4f46e5; color: #4f46e5; }
+
+    .header-row { display: flex; align-items: center; margin-bottom: 22px; }
+    .header-row h2 { margin-bottom: 0; }
+
+    .test-cards {
+      background: #f8f9ff;
+      border: 1px solid #e0e7ff;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 20px;
+      font-size: 0.82rem;
+    }
+    .test-cards h3 { font-size: 0.78rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .test-card-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      cursor: pointer;
+      border-radius: 4px;
+      padding: 4px 6px;
+      transition: background 0.15s;
+    }
+    .test-card-item:hover { background: #e0e7ff; }
+    .test-card-item .type { font-weight: 600; color: #4f46e5; }
+    .test-card-item .num { font-family: monospace; color: #374151; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+    const API = '';
+
+    const TEST_CARDS = [
+      { type: 'Visa',       number: '4263970000005262' },
+      { type: 'MasterCard', number: '5425230000004415' },
+      { type: 'Amex',       number: '374101000000608'  },
+    ];
+
+    function formatDate(dt) {
+      if (!dt) return '—';
+      return new Date(dt).toLocaleString();
+    }
+
+    function StatusBadge({ status }) {
+      return <span className={`badge badge-${status}`}>{status}</span>;
+    }
+
+    function PaymentForm({ onSuccess }) {
+      const [form, setForm] = useState({
+        cardNumber: '', expiryMonth: '', expiryYear: '', cvv: '', amount: '', currency: 'USD'
+      });
+      const [loading, setLoading] = useState(false);
+      const [result, setResult] = useState(null);
+
+      const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
+
+      const fillTestCard = (card) => {
+        setForm(f => ({ ...f, cardNumber: card.number }));
+      };
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setResult(null);
+        try {
+          const res = await fetch(`${API}/api/payments/authorize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              cardNumber: form.cardNumber,
+              expiryMonth: form.expiryMonth,
+              expiryYear: form.expiryYear,
+              cvv: form.cvv,
+              amount: parseFloat(form.amount),
+              currency: form.currency
+            })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            setResult({ type: data.status === 'DECLINED' ? 'error' : 'success', data });
+            if (data.status !== 'DECLINED') onSuccess();
+          } else {
+            setResult({ type: 'error', message: data.error || 'Request failed' });
+          }
+        } catch (err) {
+          setResult({ type: 'error', message: 'Network error: ' + err.message });
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const currentYear = new Date().getFullYear();
+      const years = Array.from({ length: 10 }, (_, i) => String(currentYear + i).slice(-2));
+
+      return (
+        <div className="card">
+          <h2>💳 New Payment</h2>
+
+          <div className="test-cards">
+            <h3>Test Cards (click to fill)</h3>
+            {TEST_CARDS.map(c => (
+              <div key={c.number} className="test-card-item" onClick={() => fillTestCard(c)}>
+                <span className="type">{c.type}</span>
+                <span className="num">{c.number}</span>
+              </div>
+            ))}
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label>Card Number</label>
+              <input
+                type="text"
+                placeholder="1234 5678 9012 3456"
+                value={form.cardNumber}
+                onChange={set('cardNumber')}
+                maxLength={19}
+                required
+              />
+            </div>
+
+            <div className="form-row-3">
+              <div className="form-group">
+                <label>Month</label>
+                <select value={form.expiryMonth} onChange={set('expiryMonth')} required>
+                  <option value="">MM</option>
+                  {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Year</label>
+                <select value={form.expiryYear} onChange={set('expiryYear')} required>
+                  <option value="">YY</option>
+                  {years.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>CVV</label>
+                <input
+                  type="text"
+                  placeholder="123"
+                  value={form.cvv}
+                  onChange={set('cvv')}
+                  maxLength={4}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Amount</label>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  step="0.01"
+                  min="0.01"
+                  value={form.amount}
+                  onChange={set('amount')}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Currency</label>
+                <select value={form.currency} onChange={set('currency')}>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="GBP">GBP</option>
+                  <option value="CAD">CAD</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading && <span className="spinner" />}
+              {loading ? 'Processing...' : 'Authorize Payment'}
+            </button>
+          </form>
+
+          {result && (
+            <div className={`alert alert-${result.type === 'success' ? 'success' : 'error'}`}>
+              {result.data ? (
+                <>
+                  <strong>{result.data.responseMessage}</strong>
+                  {result.data.authorizationCode && <> — Auth: <code>{result.data.authorizationCode}</code></>}
+                  <br />
+                  <small>ID: {result.data.transactionId}</small>
+                </>
+              ) : result.message}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function TransactionHistory({ refresh }) {
+      const [transactions, setTransactions] = useState([]);
+      const [loading, setLoading] = useState(false);
+      const [actionMsg, setActionMsg] = useState(null);
+
+      const load = useCallback(async () => {
+        setLoading(true);
+        try {
+          const res = await fetch(`${API}/api/payments/history`);
+          const data = await res.json();
+          setTransactions(data);
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setLoading(false);
+        }
+      }, []);
+
+      useEffect(() => { load(); }, [load, refresh]);
+
+      const doAction = async (url, body, successMsg) => {
+        setActionMsg(null);
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          const data = await res.json();
+          if (res.ok) {
+            setActionMsg({ type: 'success', text: successMsg + ' — ' + data.responseMessage });
+            load();
+          } else {
+            setActionMsg({ type: 'error', text: data.error || 'Action failed' });
+          }
+        } catch (err) {
+          setActionMsg({ type: 'error', text: err.message });
+        }
+      };
+
+      const capture = (id) => doAction(`${API}/api/payments/capture`, { transactionId: id }, 'Captured');
+      const refund  = (id) => doAction(`${API}/api/payments/refund`,  { transactionId: id }, 'Refunded');
+
+      return (
+        <div className="card">
+          <div className="header-row">
+            <h2>📋 Transaction History</h2>
+            <button className="refresh-btn" onClick={load}>⟳ Refresh</button>
+          </div>
+
+          {actionMsg && (
+            <div className={`alert alert-${actionMsg.type === 'success' ? 'success' : 'error'}`} style={{ marginBottom: 16 }}>
+              {actionMsg.text}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="empty-state"><div className="icon">⏳</div>Loading...</div>
+          ) : transactions.length === 0 ? (
+            <div className="empty-state">
+              <div className="icon">💸</div>
+              No transactions yet. Authorize a payment to get started.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Card</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Response</th>
+                    <th>Time</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map(tx => (
+                    <tr key={tx.transactionId}>
+                      <td>
+                        <div className="card-num">{tx.maskedCardNumber}</div>
+                        <div className="tx-id">{tx.transactionId}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>{tx.cardType}</div>
+                      </td>
+                      <td className="amount">{tx.currency} {parseFloat(tx.amount).toFixed(2)}</td>
+                      <td><StatusBadge status={tx.status} /></td>
+                      <td style={{ fontSize: '0.82rem' }}>
+                        <span style={{ fontFamily: 'monospace', color: '#6b7280' }}>{tx.responseCode}</span>
+                        {' '}{tx.responseMessage}
+                      </td>
+                      <td style={{ fontSize: '0.78rem', color: '#9ca3af', whiteSpace: 'nowrap' }}>
+                        {formatDate(tx.createdAt)}
+                      </td>
+                      <td>
+                        <div className="actions">
+                          {tx.status === 'AUTHORIZED' && (
+                            <button className="btn-sm btn-capture" onClick={() => capture(tx.transactionId)}>
+                              Capture
+                            </button>
+                          )}
+                          {tx.status === 'CAPTURED' && (
+                            <button className="btn-sm btn-refund" onClick={() => refund(tx.transactionId)}>
+                              Refund
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function App() {
+      const [refreshKey, setRefreshKey] = useState(0);
+      const triggerRefresh = () => setRefreshKey(k => k + 1);
+
+      return (
+        <>
+          <header>
+            <span>💳</span>
+            <h1>Payment Processing Demo</h1>
+          </header>
+          <div className="container">
+            <PaymentForm onSuccess={triggerRefresh} />
+            <TransactionHistory refresh={refreshKey} />
+          </div>
+        </>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

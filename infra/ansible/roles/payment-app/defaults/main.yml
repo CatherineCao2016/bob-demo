@@ -1,0 +1,43 @@
+---
+# defaults/main.yml — Default variables for the payment-app role
+#
+# Override these at the playbook level (vars:) or via extra-vars (-e).
+# Sensitive values (db_password) MUST be overridden — never use the
+# placeholder in a real environment.
+
+# ---------------------------------------------------------------------------
+# Namespace — set by the playbook for each environment
+# ---------------------------------------------------------------------------
+target_namespace: "bob-demo-staging"
+
+# ---------------------------------------------------------------------------
+# PostgreSQL credentials
+# ---------------------------------------------------------------------------
+db_user: "postgres"
+# db_password MUST be overridden in the playbook vars or via Vault/extra-vars
+db_password: "CHANGE_ME"
+
+# ---------------------------------------------------------------------------
+# PostgreSQL connection details (used in the app-config ConfigMap)
+# ---------------------------------------------------------------------------
+postgres_service_name: "postgres-service"
+postgres_port: 5432
+postgres_db_name: "paymentdb"
+
+# ---------------------------------------------------------------------------
+# Spring Boot datasource config (injected via app-config ConfigMap)
+# ---------------------------------------------------------------------------
+spring_datasource_url: "jdbc:postgresql://{{ postgres_service_name }}:{{ postgres_port }}/{{ postgres_db_name }}"
+spring_datasource_driver: "org.postgresql.Driver"
+spring_jpa_ddl_auto: "update"
+
+# ---------------------------------------------------------------------------
+# Readiness check settings
+# ---------------------------------------------------------------------------
+# How long to wait (seconds) for the postgres pod to become Ready
+postgres_readiness_timeout: 120
+# Payment-app service name and port for the pre-flight health check
+payment_service_name: "payment-service"
+payment_service_port: 8080
+
+# Made with Bob

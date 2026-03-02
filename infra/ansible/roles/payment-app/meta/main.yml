@@ -1,0 +1,22 @@
+---
+# meta/main.yml — Role metadata for payment-app
+galaxy_info:
+  role_name: payment_app
+  author: bob-demo
+  description: >
+    Configures the payment-app OpenShift namespaces after Terraform provisioning.
+    Creates the postgres-credentials Secret, app-config ConfigMap, waits for
+    PostgreSQL readiness, and runs a pre-flight health check on the payment-service.
+  min_ansible_version: "2.14"
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+
+collections:
+  - kubernetes.core
+
+dependencies: []
+
+# Made with Bob

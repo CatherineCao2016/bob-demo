@@ -1,0 +1,88 @@
+---
+# playbook.yml — Payment App OpenShift Configuration Playbook
+#
+# Runs AFTER Terraform has provisioned the OpenShift infrastructure:
+#   • Namespaces (bob-demo-staging, bob-demo-prod)
+#   • ServiceAccounts, ResourceQuotas, NetworkPolicies
+#   • PostgreSQL Deployments, Services, and PVCs
+#
+# Usage:
+#   # Export credentials first (same vars used by Terraform):
+#   export TF_VAR_cluster_url="https://api.your-cluster.example.com:6443"
+#   export TF_VAR_cluster_token="$(oc whoami -t)"
+#   export STAGING_DB_PASSWORD="your-staging-db-password"
+#   export PROD_DB_PASSWORD="your-prod-db-password"
+#
+#   ansible-galaxy collection install kubernetes.core
+#   pip install kubernetes openshift
+#   ansible-playbook -i inventory/hosts.yml playbook.yml
+#
+# Note: No image pull secret is needed — the OpenShift internal registry
+# automatically grants pull access to the default service account within
+# the same namespace.
+
+- name: Configure bob-demo-staging namespace
+  hosts: openshift_cluster
+  gather_facts: false
+  vars:
+    target_namespace: bob-demo-staging
+    # Read from environment variable — set before running the playbook:
+    #   export STAGING_DB_PASSWORD="your-staging-db-password"
+    db_password: "{{ lookup('env', 'STAGING_DB_PASSWORD') | default('STAGING_DB_PASSWORD_PLACEHOLDER', true) }}"
+
+  pre_tasks:
+    - name: "Staging | Display configuration target"
+      ansible.builtin.debug:
+        msg: "Configuring namespace: {{ target_namespace }}"
+
+    - name: "Staging | Verify DB password is set"
+      ansible.builtin.fail:
+        msg: >
+          STAGING_DB_PASSWORD environment variable is not set.
+          Export it before running: export STAGING_DB_PASSWORD="your-password"
+      when: db_password == "STAGING_DB_PASSWORD_PLACEHOLDER"
+
+  roles:
+    - role: payment-app
+
+  post_tasks:
+    - name: "Staging | Configuration complete"
+      ansible.builtin.debug:
+        msg: >
+          ✅ Namespace {{ target_namespace }} is fully configured and
+          ready for payment-app deployment via the CI/CD pipeline.
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+- name: Configure bob-demo-prod namespace
+  hosts: openshift_cluster
+  gather_facts: false
+  vars:
+    target_namespace: bob-demo-prod
+    # Read from environment variable — set before running the playbook:
+    #   export PROD_DB_PASSWORD="your-prod-db-password"
+    db_password: "{{ lookup('env', 'PROD_DB_PASSWORD') | default('PROD_DB_PASSWORD_PLACEHOLDER', true) }}"
+
+  pre_tasks:
+    - name: "Production | Display configuration target"
+      ansible.builtin.debug:
+        msg: "Configuring namespace: {{ target_namespace }}"
+
+    - name: "Production | Verify DB password is set"
+      ansible.builtin.fail:
+        msg: >
+          PROD_DB_PASSWORD environment variable is not set.
+          Export it before running: export PROD_DB_PASSWORD="your-password"
+      when: db_password == "PROD_DB_PASSWORD_PLACEHOLDER"
+
+  roles:
+    - role: payment-app
+
+  post_tasks:
+    - name: "Production | Configuration complete"
+      ansible.builtin.debug:
+        msg: >
+          ✅ Namespace {{ target_namespace }} is fully configured and
+          ready for payment-app deployment via the CI/CD pipeline.
+
+# Made with Bob

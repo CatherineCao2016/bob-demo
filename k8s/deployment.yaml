@@ -1,0 +1,236 @@
+# =============================================================================
+# OpenShift Deployment Manifest — payment-app (Java 17)
+#
+# Placeholder variables injected at deploy time:
+#   ${IMAGE_REGISTRY}  — e.g. image-registry.openshift-image-registry.svc:5000
+#   ${NAMESPACE}       — target OpenShift project/namespace
+#   ${IMAGE_TAG}       — image tag (e.g. git SHA or semver)
+# =============================================================================
+
+---
+# ── Namespace ─────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${NAMESPACE}
+  labels:
+    app.kubernetes.io/managed-by: kubectl
+
+---
+# ── Deployment ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-app
+  namespace: ${NAMESPACE}
+  labels:
+    app: payment-app
+    app.kubernetes.io/name: payment-app
+    app.kubernetes.io/version: "${IMAGE_TAG}"
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: payment-platform
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: payment-app
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0          # zero-downtime rolling update
+  template:
+    metadata:
+      labels:
+        app: payment-app
+        app.kubernetes.io/name: payment-app
+        app.kubernetes.io/version: "${IMAGE_TAG}"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8080"
+    spec:
+      # ── Security Context (matches distroless nonroot uid=65532) ─────────────
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+
+      # ── Topology Spread — distribute pods across nodes ──────────────────────
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: payment-app
+
+      containers:
+        - name: payment-app
+          image: ${IMAGE_REGISTRY}/${NAMESPACE}/payment-app:${IMAGE_TAG}
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          # ── Environment ─────────────────────────────────────────────────────
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: SERVER_PORT
+              value: "8080"
+            - name: JAVA_OPTS
+              value: >-
+                -XX:+UseContainerSupport
+                -XX:MaxRAMPercentage=75.0
+                -XX:+ExitOnOutOfMemoryError
+                -Djava.security.egd=file:/dev/./urandom
+
+          # ── Resource Limits ─────────────────────────────────────────────────
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          # ── Liveness Probe ──────────────────────────────────────────────────
+          # Restarts the container if the app is deadlocked / unresponsive.
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+
+          # ── Readiness Probe ─────────────────────────────────────────────────
+          # Removes the pod from Service endpoints until it is ready to serve.
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+
+          # ── Startup Probe ───────────────────────────────────────────────────
+          # Gives the JVM extra time to start before liveness kicks in.
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 12   # 12 × 5 s = 60 s max startup window
+            successThreshold: 1
+
+          # ── Container Security Context ───────────────────────────────────────
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          # ── Lifecycle ───────────────────────────────────────────────────────
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]   # drain in-flight requests
+
+          # ── Tmp volume for JVM temp files (read-only root FS) ───────────────
+          volumeMounts:
+            - name: tmp-dir
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp-dir
+          emptyDir: {}
+
+      # ── Graceful termination ─────────────────────────────────────────────────
+      terminationGracePeriodSeconds: 30
+
+      # ── Restart policy ───────────────────────────────────────────────────────
+      restartPolicy: Always
+
+---
+# ── PodDisruptionBudget ───────────────────────────────────────────────────────
+# Ensures at most 1 pod is unavailable during voluntary disruptions
+# (node drains, cluster upgrades, etc.).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: payment-app-pdb
+  namespace: ${NAMESPACE}
+  labels:
+    app: payment-app
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: payment-app
+
+---
+# ── Service ───────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-app
+  namespace: ${NAMESPACE}
+  labels:
+    app: payment-app
+    app.kubernetes.io/name: payment-app
+    app.kubernetes.io/component: backend
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/path: "/actuator/prometheus"
+    prometheus.io/port: "8080"
+spec:
+  type: ClusterIP
+  selector:
+    app: payment-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+
+---
+# ── OpenShift Route ───────────────────────────────────────────────────────────
+# Exposes the Service externally via the OpenShift HAProxy router.
+# TLS is terminated at the edge router; traffic inside the cluster is plain HTTP.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: payment-app
+  namespace: ${NAMESPACE}
+  labels:
+    app: payment-app
+    app.kubernetes.io/name: payment-app
+    app.kubernetes.io/component: backend
+spec:
+  # host is intentionally omitted — OpenShift auto-assigns:
+  #   payment-app-${NAMESPACE}.apps.${CLUSTER_DOMAIN}
+  to:
+    kind: Service
+    name: payment-app
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect   # force HTTPS
+  wildcardPolicy: None
+
+# Made with Bob

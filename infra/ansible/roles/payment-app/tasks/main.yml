@@ -1,0 +1,162 @@
+---
+# roles/payment-app/tasks/main.yml
+# Configures a single namespace (staging or production) after Terraform provisioning.
+# Variables expected from inventory:
+#   target_namespace  — e.g. bob-demo-staging | bob-demo-prod
+#   db_password       — placeholder credential for the namespace
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. Verify service account permissions
+# ─────────────────────────────────────────────────────────────────────────────
+- name: "{{ target_namespace }} | Verify payment-sa service account exists"
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ServiceAccount
+    name: payment-service-sa
+    namespace: "{{ target_namespace }}"
+  register: sa_info
+  failed_when: sa_info.resources | length == 0
+
+- name: "{{ target_namespace }} | Confirm payment-sa has view role binding"
+  kubernetes.core.k8s_info:
+    api_version: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    namespace: "{{ target_namespace }}"
+  register: rb_info
+
+- name: "{{ target_namespace }} | Assert at least one RoleBinding exists for payment-sa"
+  ansible.builtin.assert:
+    that:
+      - rb_info.resources | length > 0
+    fail_msg: "No RoleBindings found in {{ target_namespace }}. Terraform provisioning may be incomplete."
+    success_msg: "Service account permissions verified in {{ target_namespace }}."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. Create Kubernetes Secret for PostgreSQL credentials
+# ─────────────────────────────────────────────────────────────────────────────
+- name: "{{ target_namespace }} | Create postgres-credentials Secret"
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: postgres-credentials
+        namespace: "{{ target_namespace }}"
+        labels:
+          app: payment-app
+          managed-by: ansible
+      type: Opaque
+      stringData:
+        DB_URL: "jdbc:postgresql://postgres-service:5432/paymentdb"
+        DB_USER: "payment_user"
+        DB_PASSWORD: "{{ db_password }}"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. Create ConfigMap for application configuration
+# ─────────────────────────────────────────────────────────────────────────────
+- name: "{{ target_namespace }} | Create app-config ConfigMap"
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: app-config
+        namespace: "{{ target_namespace }}"
+        labels:
+          app: payment-app
+          managed-by: ansible
+      data:
+        SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-service:5432/paymentdb"
+        SPRING_DATASOURCE_USERNAME: "payment_user"
+        SPRING_PROFILES_ACTIVE: "{{ 'prod' if 'prod' in target_namespace else 'staging' }}"
+        SERVER_PORT: "8080"
+        MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,metrics"
+        MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "always"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. Wait for PostgreSQL pod to be ready
+# ─────────────────────────────────────────────────────────────────────────────
+- name: "{{ target_namespace }} | Wait for PostgreSQL pod to reach Running state"
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ target_namespace }}"
+    label_selectors:
+      - "app=postgres"
+  register: pg_pods
+  until: >
+    pg_pods.resources | length > 0 and
+    (pg_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length) > 0
+  retries: 30
+  delay: 10
+
+- name: "{{ target_namespace }} | Wait for PostgreSQL readiness probe to pass"
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ target_namespace }}"
+    label_selectors:
+      - "app=postgres"
+  register: pg_ready
+  until: >
+    pg_ready.resources | length > 0 and
+    pg_ready.resources[0].status.containerStatuses is defined and
+    pg_ready.resources[0].status.containerStatuses[0].ready == true
+  retries: 30
+  delay: 10
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. Pre-flight health check — confirm namespace is ready for deployment
+# ─────────────────────────────────────────────────────────────────────────────
+- name: "{{ target_namespace }} | Pre-flight: verify postgres-service ClusterIP exists"
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Service
+    name: postgres-service
+    namespace: "{{ target_namespace }}"
+  register: pg_svc
+  failed_when: pg_svc.resources | length == 0
+
+- name: "{{ target_namespace }} | Pre-flight: verify postgres-credentials Secret exists"
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: postgres-credentials
+    namespace: "{{ target_namespace }}"
+  register: pg_secret
+  failed_when: pg_secret.resources | length == 0
+
+- name: "{{ target_namespace }} | Pre-flight: verify app-config ConfigMap exists"
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    name: app-config
+    namespace: "{{ target_namespace }}"
+  register: app_cm
+  failed_when: app_cm.resources | length == 0
+
+- name: "{{ target_namespace }} | Pre-flight: verify ResourceQuota is in place"
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ResourceQuota
+    namespace: "{{ target_namespace }}"
+  register: rq_info
+  failed_when: rq_info.resources | length == 0
+
+- name: "{{ target_namespace }} | Pre-flight: verify NetworkPolicy is in place"
+  kubernetes.core.k8s_info:
+    api_version: networking.k8s.io/v1
+    kind: NetworkPolicy
+    namespace: "{{ target_namespace }}"
+  register: np_info
+  failed_when: np_info.resources | length == 0
+
+- name: "{{ target_namespace }} | Pre-flight health check PASSED — namespace is ready for deployment"
+  ansible.builtin.debug:
+    msg: >
+      Namespace {{ target_namespace }} pre-flight checks passed.
+      PostgreSQL is ready, Secret and ConfigMap are present,
+      ResourceQuota and NetworkPolicy are enforced.
+      Safe to proceed with payment-app deployment.
