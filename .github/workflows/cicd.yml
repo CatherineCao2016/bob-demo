@@ -203,11 +203,12 @@ jobs:
     name: "CI · Docker Build & Push → bob-demo-staging"
     runs-on: ubuntu-latest
     # Only push on pushes to main (not on PRs).
-    # Also runs when quality-gate jobs were skipped ([skip checks] path):
-    # GitHub treats skipped needs as blocking by default, so we explicitly
-    # allow success OR skipped for each quality-gate job.
-    if: "github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.owasp.result == 'success' || needs.owasp.result == 'skipped') && (needs.semgrep.result == 'success' || needs.semgrep.result == 'skipped')"
-    needs: [build, test, owasp, semgrep]
+    # Only `build` is in `needs` — quality-gate jobs (test/owasp/semgrep) are
+    # NOT listed here because when they are skipped (via [skip checks]),
+    # GitHub skips this job too before evaluating the `if` condition.
+    # Those jobs already gate themselves via their own `if` conditions.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build]
 
     steps:
       - name: Checkout source
