@@ -17,6 +17,16 @@ metadata:
     app.kubernetes.io/managed-by: kubectl
 
 ---
+# ── ServiceAccount ────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: payment-service-sa
+  namespace: ${NAMESPACE}
+  labels:
+    app: payment-app
+
+---
 # ── Deployment ────────────────────────────────────────────────────────────────
 apiVersion: apps/v1
 kind: Deployment
