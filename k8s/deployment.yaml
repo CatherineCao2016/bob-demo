@@ -51,14 +51,10 @@ spec:
         prometheus.io/port: "8080"
     spec:
       serviceAccountName: payment-service-sa
-      # ── Security Context (matches distroless nonroot uid=65532) ─────────────
+      # ── Security Context ─────────────────────────────────────────────────────
+      # OpenShift will assign UID/GID from namespace range automatically
       securityContext:
         runAsNonRoot: true
-        runAsUser: 65532
-        runAsGroup: 65532
-        fsGroup: 65532
-        seccompProfile:
-          type: RuntimeDefault
 
       # ── Topology Spread — distribute pods across nodes ──────────────────────
       # ScheduleAnyway is a soft constraint: pods are spread across nodes when
@@ -142,7 +138,6 @@ spec:
           # ── Container Security Context ───────────────────────────────────────
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
